@@ -242,3 +242,5 @@ ActiveRecord::Base.send :extend, ActsAsParanoid
 
 # Push the recover callback onto the activerecord callback list
 ActiveRecord::Callbacks::CALLBACKS.push(:before_recover, :after_recover)
+
+ActiveRecord::Associations::ClassMethods.valid_keys_for_belongs_to_association << :with_deleted 
