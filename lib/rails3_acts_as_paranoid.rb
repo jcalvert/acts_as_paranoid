@@ -118,14 +118,18 @@ module ActsAsParanoid
           def #{target}_with_unscoped(*args)
             reflection = self.class.reflect_on_association(:#{target})
             reflection.options[:with_deleted] = #{with_deleted}
-            return nil if reflection.options[:polymorphic] && reflection.klass.nil?
-            return #{target}_without_unscoped(*args) unless reflection.klass.paranoid?
-            reflection.klass.with_deleted.scoping { #{target}_without_unscoped(*args) }
+            if reflection.options[:polymorphic]
+              klass_string = self.send(reflection.options[:foreign_type])
+              return nil if klass_string.nil?
+              klass = klass_string.constantize
+              return klass.with_deleted.scoping { #{target}_without_unscoped(*args) }
+            else 
+              return reflection.klass.with_deleted.scoping { #{target}_without_unscoped(*args) }
+            end
           end
           alias_method_chain :#{target}, :unscoped
         RUBY
       end
-
       result
     end
 
