@@ -10,6 +10,15 @@ module ActsAsParanoid
   def validates_as_paranoid
     extend ParanoidValidations::ClassMethods
   end
+
+  def friends_with_paranoid
+    extend AssociationMethods
+
+    class << self
+      alias_method_chain :belongs_to, :deleted
+    end
+  end
+
   
   def acts_as_paranoid(options = {})
     raise ArgumentError, "Hash expected, got #{options.class.name}" if not options.is_a?(Hash) and not options.empty?
@@ -47,6 +56,7 @@ module ActsAsParanoid
     
     include InstanceMethods
     extend ClassMethods
+    extend AssociationMethods
 
     class << self
       alias_method_chain :belongs_to, :deleted
@@ -56,7 +66,7 @@ module ActsAsParanoid
     default_scope where(paranoid_default_scope_sql)
   end
 
-  module ClassMethods
+  module ClassMethods 
     def self.extended(base)
       base.define_callbacks :recover
     end
@@ -109,30 +119,6 @@ module ActsAsParanoid
       end
     end
 
-    def belongs_to_with_deleted(target, options = {})
-      with_deleted = options.delete(:with_deleted)
-      result = belongs_to_without_deleted(target, options)
-
-      if with_deleted
-        class_eval <<-RUBY, __FILE__, __LINE__
-          def #{target}_with_unscoped(*args)
-            reflection = self.class.reflect_on_association(:#{target})
-            reflection.options[:with_deleted] = #{with_deleted}
-            if reflection.options[:polymorphic]
-              klass_string = self.send(reflection.options[:foreign_type])
-              return nil if klass_string.nil?
-              klass = klass_string.constantize
-              return klass.with_deleted.scoping { #{target}_without_unscoped(*args) }
-            else 
-              return reflection.klass.with_deleted.scoping { #{target}_without_unscoped(*args) }
-            end
-          end
-          alias_method_chain :#{target}, :unscoped
-        RUBY
-      end
-      result
-    end
-
   protected
 
     def without_paranoid_default_scope
@@ -145,6 +131,32 @@ module ActsAsParanoid
       scope
     end
 
+  end
+
+  module AssociationMethods
+    def belongs_to_with_deleted(target, options = {})
+      with_deleted = options.delete(:with_deleted)
+      result = belongs_to_without_deleted(target, options)
+      if with_deleted
+        class_eval <<-RUBY, __FILE__, __LINE__
+          def #{target}_with_unscoped(*args)
+            reflection = self.class.reflect_on_association(:#{target})
+            reflection.options[:with_deleted] = #{with_deleted}
+            if reflection.options[:polymorphic]
+              klass_string = self.send(reflection.options[:foreign_type])
+              return nil if klass_string.nil?
+              klass = klass_string.constantize
+              return klass.with_deleted.scoping { #{target}_without_unscoped(*args) }
+            else
+              return #{target}_without_unscoped(*args) unless reflection.klass.paranoid?
+              return reflection.klass.with_deleted.scoping { #{target}_without_unscoped(*args) }
+            end
+          end
+          alias_method_chain :#{target}, :unscoped
+        RUBY
+      end
+      result
+    end
   end
   
   module InstanceMethods
