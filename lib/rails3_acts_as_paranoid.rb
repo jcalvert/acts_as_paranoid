@@ -185,8 +185,6 @@ module ActsAsParanoid
             self
           end
         end
-      else
-        destroy!
       end
     end
     
